@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+    <logger name="com.simpragma.ms.kernel" level="TRACE" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+</configuration>
+
+<!--
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml" />
+    <springProfile name="dev,test">
+        <logger name="com.simpragma.ms.kernel" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE" />
+        </logger>
+    </springProfile>
+    <springProfile name="production">
+        <logger name="com.simpragma.ms.kernel" level="WARN" additivity="false">
+            <appender-ref ref="FILE" />
+        </logger>
+    </springProfile>
+    <if condition='property("spring.profiles.active").contains("dev")'>
+        <then>
+            <logger name="com.simpragma.ms.kernel" level="DEBUG" additivity="false">
+                <appender-ref ref="CONSOLE" />
+            </logger>
+        </then>
+        <else>
+            <logger name="com.simpragma.ms.kernel" level="WARN" additivity="false">
+                <appender-ref ref="FILE" />
+            </logger>
+        </else>
+    </if>
+</configuration>
+-->
