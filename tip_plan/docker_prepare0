@@ -1,0 +1,32 @@
+#!/bin/bash
+#-----Change docker file to point to proper property file.
+#-----Master=prod, Develop=qa and feature=dev
+
+# let us evaluate which branch we are working with.
+GIT_BRANCH_GOT=`echo ${1} | cut -d "/" -f2 | tr '[:upper:]' '[:lower:]'`
+echo "SIMPRAGMA: Jenkins running for BRANCH=${GIT_BRANCH_GOT}"
+
+# let us switch to specific branch
+test "${GIT_BRANCH_GOT}" == "master" &&
+{
+        echo "SIMPRAGMA: BRANCH=master is choosen for this build"
+        # Write your branch specific build code here
+	sed -i "s/MY_PROPERTY_FILE/prod/g" Dockerfile
+	exit $?
+}
+
+test "${GIT_BRANCH_GOT}" == "develop" &&
+{
+        echo "SIMPRAGMA: BRANCH=develop is choosen for this build"
+        # Write your branch specific build code here
+	sed -i "s/MY_PROPERTY_FILE/qa/g" Dockerfile
+	exit $?
+}
+
+test "${GIT_BRANCH_GOT}" == "feature" &&
+{
+        echo "SIMPRAGMA: BRANCH=feature is choosen for this build"
+        # Write your branch specific build code here
+	sed -i "s/MY_PROPERTY_FILE/dev/g" Dockerfile
+	exit $?
+}

@@ -1,0 +1,7 @@
+#!/bin/bash
+export BRANCH_INFO=${2}
+. /root/TravelInsurance/pipeline-config
+sed -i "s/MY_APP_NAME/${My_App_Name}/g" ${1}
+sed -i "s/MY_DOCKER_REGISTRY/${Nexus_Ip_Port}/g" ${1}
+sed -i "s/MY_NODE_PORT/${My_Node_Port}/g" ${1}
+sed -i "s/MY_IMAGE_VERSION/${My_App_Version}/g" ${1}

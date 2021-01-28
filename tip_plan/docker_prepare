@@ -1,0 +1,10 @@
+#!/bin/bash
+export BRANCH_INFO=${2}
+. /root/TravelWeb_BE_tip_plan/pipeline-config
+sed -i "s/MY_APP_NAME/${My_App_Name}/g" ${1}
+sed -i "s/MY_APP_DB_IMAGE/${My_App_DB_Image}/g" ${1}
+sed -i "s/MY_DOCKER_REGISTRY/${Nexus_Ip_Port}/g" ${1}
+sed -i "s/MY_NODE_PORT/${My_Node_Port}/g" ${1}
+sed -i "s/MY_IMAGE_VERSION/${My_App_Version}/g" ${1}
+sed -i "s/MY_APP_DB_VOLUMES/${My_App_DB_Volumes}/g" ${1}
+sed -i "s/MY_APP_PORT/${My_App_Port}/g" ${1}

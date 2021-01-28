@@ -1,0 +1,17 @@
+version: '2'
+services:
+    MY_APP_NAME:
+#    build: .
+     image: MY_DOCKER_REGISTRY/MY_APP_NAME:MY_IMAGE_VERSION
+     links:
+       - MY_APP_NAMEDB
+     ports:
+       - MY_APP_PORT
+    MY_APP_NAMEDB:
+     image: MY_APP_DB_IMAGE
+     volumes:
+       - MY_APP_DB_VOLUMES
+     environment:
+       MYSQL_ROOT: "root"
+       MYSQL_ROOT_PASSWORD: "plan123"
+       MYSQL_DB: "plan_management"

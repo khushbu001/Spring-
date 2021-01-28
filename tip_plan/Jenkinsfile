@@ -1,0 +1,341 @@
+def chart_set=''
+def chart_files=''
+
+// Build Tool to use
+//def Build_Tool_Name = 'alexsuch/angular-cli:latest'
+def Build_Tool_Name = 'maven:latest'
+
+// Testing tool to use.
+def Testing_Tool_Name = 'httpd:2.4'
+
+// THE PIPELINE
+pipeline {
+    agent none
+    environment {
+        //Slack Notifications.
+        Slack_Channel = '#continuous-delivery'
+
+        //Email Notifications
+        Email_Ids = 'sanjay@simprgma.com, kartikarali@simpragma.com'
+    }
+
+    triggers {
+        pollSCM('*/1 * * * *')
+        gitlab(triggerOnPush: true, triggerOnMergeRequest: true, branchFilterType: 'All')
+    }
+    
+    stages {
+    stage('set_envddd') {
+    agent any
+    steps {
+        script {
+            echo "WE ARE BUILDING FOR ${env.GIT_BRANCH} ...................."
+            if ( env.GIT_BRANCH == 'origin/master') {
+                    env.STAGE_Build_Application     = 'true'
+                    env.STAGE_SonarQube_Analysis    = 'true'
+                    env.STAGE_QualityGate           = 'false'
+                    env.STAGE_Load_Deliverables     = 'true'
+                    env.STAGE_Create_Containers     = 'false'
+                    env.STAGE_Create_Kube_Deploy    = 'false'
+                    env.STAGE_Start_In_Container    = 'false'
+                    env.STAGE_Run_Tests             = 'false'
+                } else if ( env.GIT_BRANCH == 'origin/develop')  {
+                    env.STAGE_Build_Application     = 'true'
+                    env.STAGE_SonarQube_Analysis    = 'true'
+                    env.STAGE_QualityGate           = 'false'
+                    env.STAGE_Load_Deliverables     = 'true'
+                    env.STAGE_Create_Containers     = 'true'
+                    env.STAGE_Create_Kube_Deploy    = 'false'
+                    env.STAGE_Start_In_Container    = 'true'
+                    env.STAGE_Run_Tests             = 'false'
+                    env.STAGE_delete_ws             = 'false'
+                } else {
+                    env.STAGE_Build_Application     = 'true'
+                    env.STAGE_SonarQube_Analysis    = 'true'
+                    env.STAGE_QualityGate           = 'false'
+                    env.STAGE_Load_Deliverables     = 'true'
+                    env.STAGE_Create_Containers     = 'true'
+                    env.STAGE_Create_Kube_Deploy    = 'false'
+                    env.STAGE_Start_In_Container    = 'true'
+                    env.STAGE_Run_Tests             = 'false'
+                    env.STAGE_delete_ws             = 'false'
+                }
+        }
+    }
+    }
+    
+    
+    
+        stage('Build-Application') {
+            when {
+                anyOf {
+                    environment name: 'STAGE_Build_Application' , value: 'true'
+                }
+            }
+
+            //agent { docker 'trion/ng-cli:latest' }
+            agent {
+                docker {
+                    image "${Build_Tool_Name}"
+                    args '-u root:root'
+                    args '-v /root/mavenconf/settings.xml:/usr/share/maven/conf/settings.xml'
+                }
+            }
+            steps {
+                sh '''
+                    #----Start...
+                    echo "Build-Application phase"
+
+                    #----Load configuration details...
+                    export BRANCH_INFO=${GIT_BRANCH} ; . ./pipeline-config
+
+                    #----Run Build Steps.
+                    chmod 0777 ${WORKSPACE}/Build_Steps
+                    ./Build_Steps ${GIT_BRANCH}
+                '''
+            }
+        } // END OF A STAGE
+
+        stage('SonarQube_Analysis') {
+        agent any
+            when {
+                environment name: 'STAGE_SonarQube_Analysis', value: 'true'
+            }
+            
+            environment {
+                scannerHome = tool 'SonarQubeScanner'
+            }
+            steps {
+                    withSonarQubeEnv('sonar2') {
+                            sh '''
+                                export BRANCH_INFO=${GIT_BRANCH} ; . ./pipeline-config
+                                GIT_BRANCH_GOT=`echo ${GIT_BRANCH} | cut -d "/" -f2-3 | tr -s "/" "_"`
+                                sudo mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.6.0.1398:sonar -Dsonar.host.url=${SONAR_SERVER} -Dsonar.projectKey=${Project_Name}_${GIT_BRANCH_GOT} -Dsonar.projectName=${Project_Name}_${GIT_BRANCH_GOT}
+                                sudo chmod -R 0777 ./target
+                            '''
+            		}
+            }
+        }  // END OF A STAGE
+        
+        stage("QualityGate"){
+            agent any
+            when {
+                environment name: 'STAGE_QualityGate', value: 'true'
+            }
+            steps {
+              script {
+                sleep(10)
+                def qualitygate = waitForQualityGate()
+                if (qualitygate.status != "OK") {
+                    error "Pipeline aborted due to quality gate coverage failure: ${qualitygate.status}"
+                } 
+              }
+            }
+        }
+        
+
+        stage('Load_Deliverables') {
+            agent any
+            when {
+                environment name: 'STAGE_Load_Deliverables', value: 'true'
+            }
+            steps {
+                sh '''
+                    #----Start...
+                    echo "Load-Deliverables phase"
+
+                    #----Load configuration details...
+                    export BRANCH_INFO=${GIT_BRANCH} ; . ./pipeline-config
+
+                    # Do the Copy to remote server.
+                    #------make directory and copy.
+                    ls -l
+                    ssh ${Test_System_Login}@${Test_System_Ip} "mkdir -p ${Destination_Path}"
+                    scp -r ${Source_Path} ${Test_System_Login}@${Test_System_Ip}:${Destination_Path}
+                   
+
+                    #mkdir -p ${Destination_Path}
+                    #cp -r ${Source_Path}/* ${Destination_Path}
+
+                    #scp -r nginx.conf ${Test_System_Login}@${Test_System_Ip}:${Destination_Path}
+                    #scp -r Dockerfile ${Test_System_Login}@${Test_System_Ip}:${Destination_Path}
+
+                '''
+            }
+        } // END OF A STAGE
+
+        stage('Create_Containers') {
+            agent any
+            when {
+                environment name: 'STAGE_Create_Containers', value: 'true'
+            }
+            steps {
+                sh '''#!/bin/bash
+                    #----Load configuration details...
+                    export BRANCH_INFO=${GIT_BRANCH} ; . ./pipeline-config
+
+                    # Configure the Application.
+                    # docker login -u admin -p "d^Oz${;}Qqlm" ${Nexus_Ip_Port}
+                    # echo "d^Oz\${;}Qqlm"
+                    #docker login -u admin -p "d^Oz\${;}Qqlm" ${Nexus_Ip_Port}
+	            chmod 0755 ./docker_prepare0
+		    ./docker_prepare0 ${GIT_BRANCH}
+		            cat Dockerfile
+                    docker build -t ${Nexus_Ip_Port}/${My_App_Name}:${My_App_Version} .
+                    docker push ${Nexus_Ip_Port}/${My_App_Name}:${My_App_Version}
+                    docker image rm -f `docker image ls | grep ${Nexus_Ip_Port}  | grep ${My_App_Name} | grep  ${My_App_Version} | tr -s " " | cut -f3 -d " " `
+                '''
+            }
+        } // END OF A STAGE
+
+        stage('Create_Kube_Deploy'){
+            agent any
+            when {
+                environment name: 'STAGE_Create_Kube_Deploy', value: 'true'
+            }
+            steps {
+                sh '''
+                    #----Load configuration details...
+                    export BRANCH_INFO=${GIT_BRANCH} ; . ./pipeline-config
+
+                    scp -r ./deploy* ${Test_System_Login}@${Test_System_Ip}:${Destination_Path}
+                    scp -r ./pipeline-config ${Test_System_Login}@${Test_System_Ip}:${Destination_Path}
+                    
+                    ssh ${Test_System_Login}@${Test_System_Ip} "chmod 0755 ${Destination_Path}/deployment_prepare"
+                    ssh ${Test_System_Login}@${Test_System_Ip} "${Destination_Path}/deployment_prepare ${Destination_Path}/deploy.yaml ${GIT_BRANCH}"
+                    ssh ${Test_System_Login}@${Test_System_Ip} "kubectl apply -f ${Destination_Path}/deploy.yaml"
+                '''
+            }
+        } // END OF A STAGE
+
+        stage('Start_In_Container'){
+            agent any
+            when {
+                environment name: 'STAGE_Start_In_Container', value: 'true'
+            }
+            steps {
+                sh '''
+                    # Skip this stage
+                    #echo "Skipping....Start-In-Container phase" && exit;
+
+                    #----Start...
+                    echo "Start-In-Container phase"
+
+                    #----Load configuration details...
+                    export BRANCH_INFO=${GIT_BRANCH} ; . ./pipeline-config
+                    
+                    scp -r ./docker* ${Test_System_Login}@${Test_System_Ip}:${Destination_Path}
+                    scp -r ./pipeline-config ${Test_System_Login}@${Test_System_Ip}:${Destination_Path}
+                    ssh ${Test_System_Login}@${Test_System_Ip} "chmod 0755 ${Destination_Path}/docker_prepare"
+                    ssh ${Test_System_Login}@${Test_System_Ip} "${Destination_Path}/docker_prepare ${Destination_Path}/docker-compose.yml ${GIT_BRANCH}"
+
+
+                    #---- Remote Test System.i run dokcer containers
+                    ssh ${Test_System_Login}@${Test_System_Ip} "docker-compose -f ${Destination_Path}/docker-compose.yml kill"
+                    ssh ${Test_System_Login}@${Test_System_Ip} "docker-compose -f ${Destination_Path}/docker-compose.yml up --build -d "
+                    ssh ${Test_System_Login}@${Test_System_Ip} "docker-compose -f ${Destination_Path}/docker-compose.yml ps"
+                    ssh ${Test_System_Login}@${Test_System_Ip} "docker-compose -f ${Destination_Path}/docker-compose.yml logs"
+                    ssh ${Test_System_Login}@${Test_System_Ip} "cd /root/${Project_Name}/ ; test ! -f debug && ln -s /root/debug debug || exit 0"
+                '''
+            }
+        } // END OF A STAGE
+
+        stage('Run_Tests'){
+            when {
+                environment name: 'STAGE_Run_Tests', value: 'true'
+            }
+            parallel {
+                stage('Test On Windows') {
+                    agent any
+                    steps {
+                        sh '''
+                        echo "Running Test on Linux"
+                        #bat "run-tests.bat"
+                        '''
+                    }
+                  /*  post {
+                        always {
+                           echo "ok"
+                        }
+                    } */
+                }
+                stage('Test On Linux') {
+                    agent any
+                    steps {
+                        sh '''
+                        echo "Running Test on Linux"
+                        #run-tests.sh
+                        '''
+                    }
+                   /* post {
+                        always {
+                            echo "ok"
+                        }
+                    } */
+                }
+            }
+        } // END OF A STAGE
+        
+      stage("Display changeset?") {
+      steps {
+        script {
+           def changeLogSets = currentBuild.changeSets
+           for (int i = 0; i < changeLogSets.size(); i++) {
+           def entries = changeLogSets[i].items
+           for (int j = 0; j < entries.length; j++) {
+               def entry = entries[j]
+               echo "${entry.commitId} by ${entry.author} on ${new Date(entry.timestamp)}: ${entry.msg}"
+               println "${entry.commitId} by ${entry.author} on ${new Date(entry.timestamp)}: ${entry.msg}"
+               chart_set = chart_set + "COMMIT_ID ${entry.commitId} AUTHOR ${entry.author}  DATE ${new Date(entry.timestamp)}  MESSAGE ${entry.msg} \n"
+               def files = new ArrayList(entry.affectedFiles)
+               for (int k = 0; k < files.size(); k++) {
+                   def file = files[k]
+                   echo "${file.editType.name} ${file.path}"
+                   println " ${file.editType.name} ${file.path}"
+                   chart_files = chart_files + " ${file.editType.name}--------> ${file.path} \n"
+                   
+               }
+            }
+           }
+        }
+      }
+      }
+
+
+    } // END OF PIPELINE STAGES
+
+    post {
+         
+
+        /*
+        always {
+        mail body: 'The pipeline ${currentBuild.fullDisplayName} completed Failed.',
+             bcc: '',
+             cc: 'admin@simpragma.com',
+             from: 'admin@simpragma.com',
+             replyTo: 'admin@simpragma.com',
+             subject: 'The pipeline ${currentBuild.fullDisplayName}: Failed.',
+             to: env.Email_Ids
+        }
+
+        success {
+        emailext body: 'The pipeline ${currentBuild.fullDisplayName} completed Failed.',
+                 recipientProviders: [[$class: 'DevelopersRecipientProvider'],[$class: 'RequesterRecipientProvider']],
+                 subject: 'The pipeline ${currentBuild.fullDisplayName}: Failed.',
+                 to: env.Email_Ids
+        }
+        */
+
+        failure {
+        slackSend channel: env.Slack_Channel ,
+                  color : 'danger',
+                  message: "The pipeline ${currentBuild.fullDisplayName} Failed. ${env.BUILD_URL} \n ${chart_set} \n ${chart_files} "
+        }
+
+        success {
+        slackSend channel: env.Slack_Channel ,
+                  color: 'good',
+                  message: "The pipeline by ${currentBuild.fullDisplayName} completed successfully. \n ${chart_set} \n ${chart_files} "
+        }
+    } // END OF PIPELINE POST
+} // END OF PIPELINE

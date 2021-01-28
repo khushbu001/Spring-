@@ -1,0 +1,64 @@
+#!/bin/bash
+# let us evaluate which branch we are working with.
+GIT_BRANCH_GOT=`echo ${BRANCH_INFO} | cut -d "/" -f2 | tr '[:upper:]' '[:lower:]'`
+echo "SIMPRAGMA: Jenkins running for BRANCH=${GIT_BRANCH_GOT}"
+
+case $GIT_BRANCH_GOT in
+        master)
+                echo "SIMPRAGMA: BRANCH=master is choosen for this build"
+                # Write your branch specific build code here
+My_App_Name="${GIT_BRANCH_GOT}_travelwebbe"
+My_App_Version="v.2.8"
+My_App_Port="8030:8080"
+#My_App_Volumes=""
+My_App_DB_Image=mysql:5.7.27
+My_App_DB_Volumes="\/root\/data\/${GIT_BRANCH_GOT}_travelweb_be_tip_plan\/:\/var\/lib\/mysql"
+                ;;
+        feature)
+                echo "SIMPRAGMA: BRANCH=feature is choosen for this build"
+                # Write your branch specific build code here
+                # Docker Container Name and Version
+My_App_Name="${GIT_BRANCH_GOT}_travelwebbe"
+My_App_Version="v.2.12"
+My_App_Port="8031:8080"
+#My_App_Volumes=""
+My_App_DB_Image=mysql:5.7.27
+My_App_DB_Volumes="\/root\/data\/${GIT_BRANCH_GOT}_travelweb_be_tip_plan\/:\/var\/lib\/mysql"
+                ;;
+        develop)
+                echo "SIMPRAGMA: BRANCH=develop is choosen for this build"
+                # Write your branch specific build code here
+My_App_Name="${GIT_BRANCH_GOT}_travelwebbe"
+My_App_Version="v.2.9"
+My_App_Port="8032:8080"
+#My_App_Volumes=""
+My_App_DB_Image=mysql:5.7.27
+My_App_DB_Volumes="\/root\/data\/${GIT_BRANCH_GOT}_travelweb_be_tip_plan\/:\/var\/lib\/mysql"
+                ;;
+        *)
+                echo "branch not supported"
+                exit 1
+                ;;
+esac
+#exit 0
+
+## Test system details..
+Project_Name="TravelWeb_BE_tip_plan"
+Test_System_Ip="198.58.112.23"
+Test_System_Login="root"
+
+# Using ssh keys.....not required.
+#Test_System_Password="Simpragma123!"
+
+# Deliverable location local and remote
+Source_Path="./target/*"
+Destination_Path="/root/${Project_Name}/"
+
+# Nexus Repo
+Nexus_Ip_Port="docker.simpragma.com"
+
+# My kubernates node port
+My_Node_Port="30001"
+
+# SonarQube Server
+SONAR_SERVER="http://sonar.simpragma.com"
