@@ -1,0 +1,7 @@
+com/example/consumingwebservice/wsdl/NumberToWords.class
+com/example/consumingwebservice/wsdl/NumberToDollars.class
+com/example/demo/DemoApplication.class
+com/example/consumingwebservice/wsdl/NumberToDollarsResponse.class
+com/example/consumingwebservice/wsdl/NumberToWordsResponse.class
+com/example/consumingwebservice/wsdl/package-info.class
+com/example/consumingwebservice/wsdl/ObjectFactory.class
